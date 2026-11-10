@@ -93,7 +93,7 @@ export function FriendsPage() {
     if (inviteError) { setError(inviteError.message); return }
     const invite = data as { invite_code: string }
     const url = `${window.location.origin}/play?invite=${invite.invite_code}`
-    try { await navigator.clipboard.writeText(url); setMessage('Spiel-Einladung kopiert. Teile den Link mit deinem Freund.') }
+    try { await navigator.clipboard.writeText(url); setMessage(`Freundescode ${invite.invite_code} erstellt. Code oder kopierten Link mit deinem Freund teilen.`) }
     catch { setMessage(`Einladungscode: ${invite.invite_code}`) }
   }
 

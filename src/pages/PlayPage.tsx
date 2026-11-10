@@ -151,6 +151,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   const [feedback, setFeedback] = useState('')
   const [onlineGame, setOnlineGame] = useState<OnlineGame | null>(null)
   const [inviteCode, setInviteCode] = useState('')
+  const [joinCode, setJoinCode] = useState('')
   const [searching, setSearching] = useState(false)
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<'play' | 'moves' | 'chat'>('play')
@@ -278,6 +279,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
 
   function applyOnlineGame(row: OnlineGame) {
     setFlagged(null)
+    if (row.status !== 'waiting') setInviteCode('')
     onlineGameRef.current = row
     setOnlineGame(row)
     if (user) setOrientation(row.white_player_id === user.id ? 'w' : 'b')
@@ -509,6 +511,34 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
       setActiveTab('play')
     } catch (e: any) { setFeedback(e.message) }
     finally { setBusy(false) }
+  }
+
+  async function joinFriendGame() {
+    const code = joinCode.trim()
+    if (!/^\d{4}$/.test(code)) {
+      setFeedback('Gib den vierstelligen Freundescode ein.')
+      return
+    }
+    if (!user) {
+      setFeedback('Die Gastverbindung ist noch nicht bereit. Prüfe die Supabase-Gasteinstellungen.')
+      return
+    }
+
+    setBusy(true)
+    setFeedback('')
+    try {
+      const { data, error } = await requireSupabase().rpc('join_game_invite', { p_invite_code: code })
+      if (error) throw error
+      const invite = data as { id?: string }
+      if (!invite?.id) throw new Error('Für diesen Code wurde keine offene Partie gefunden.')
+      setJoinCode('')
+      setMode('online')
+      await loadOnlineGame(invite.id)
+    } catch (caught) {
+      setFeedback(caught instanceof Error ? caught.message : 'Der Freundescode konnte nicht geöffnet werden.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function findMatch() {
@@ -829,19 +859,45 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
                   </button>
                 )}
 
-                <div className="online-or-divider"><span>OR</span></div>
+                <div className="online-or-divider"><span>ODER</span></div>
+
+                <form className="friend-code-entry" onSubmit={(event) => { event.preventDefault(); void joinFriendGame() }}>
+                  <label htmlFor="friend-game-code">Freundescode eingeben</label>
+                  <div className="friend-code-controls">
+                    <input
+                      id="friend-game-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]{4}"
+                      maxLength={4}
+                      placeholder="1234"
+                      value={joinCode}
+                      onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                      aria-label="Vierstelliger Freundescode"
+                    />
+                    <button className="btn-chesscom-secondary" type="submit" disabled={busy || joinCode.length !== 4}>
+                      Beitreten
+                    </button>
+                  </div>
+                </form>
 
                 <button className="btn-chesscom-secondary" onClick={() => void createInvite()} disabled={busy}>
                   <Users size={16} />
-                  Create Friend Invite
+                  Vierstelligen Code erstellen
                 </button>
 
                 {inviteCode && (
                   <div className="invite-box">
-                    <span>Send link to friend:</span>
+                    <span>Dein Freundescode</span>
+                    <strong className="friend-invite-code">{inviteCode}</strong>
+                    <span>Oder teile diesen Direktlink:</span>
                     <code>{`${window.location.origin}/play?invite=${inviteCode}`}</code>
-                    <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/play?invite=${inviteCode}`)}>
-                      <Copy size={14} /> Copy
+                    <button onClick={() => void navigator.clipboard.writeText(inviteCode)}>
+                      <Copy size={14} /> Code kopieren
+                    </button>
+                    <button onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/play?invite=${inviteCode}`)}>
+                      <Copy size={14} /> Link kopieren
                     </button>
                   </div>
                 )}
