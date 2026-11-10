@@ -1,0 +1,8 @@
+node_modules/
+dist/
+public/engine/
+.vite/
+.chrome-codex-tmp/
+.env
+.env.*
+!.env.example

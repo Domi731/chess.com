@@ -1,0 +1,2 @@
+[functions.make-move]
+verify_jwt = true

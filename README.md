@@ -52,4 +52,3 @@ Beim Start und Produktionsbuild kopiert `scripts/copy-stockfish.mjs` Stockfish 1
 ## Vercel
 
 Das Repository enthält `vercel.json` für Build, Ausgabe und Client-Routing. Hinterlege `VITE_SUPABASE_URL` und `VITE_SUPABASE_PUBLISHABLE_KEY` in den Vercel-Projektvariablen und deploye das Projekt. Die Supabase Edge Function bleibt bei Supabase.
-
