@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ArrowRight, Award, Check, CircleUserRound, ExternalLink, MessageCircle, Search, ShieldCheck, Trophy, UserMinus, UserPlus, Users, Wifi, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import AccountGate from '../components/AccountGate'
 import { loadFriendships, loadLeaderboard, loadPlayerRatings, loadGames, removeFriendship, respondToFriendRequest, sendFriendRequest } from '../lib/data'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 import type { GameCategory, PlayerProfile, PlayerRating, SavedGame } from '../lib/types'
@@ -64,14 +63,14 @@ export function FriendsPage() {
   }
   useEffect(() => { void refresh() }, [user])
 
-  if (!user) return <div className="platform-page"><PageHeading eyebrow="COMMUNITY" title="Freunde" summary="Füge Freunde hinzu, sieh ihren Online-Status und lade sie zu einer Partie ein." /><AccountGate /></div>
   const accepted = rows.filter((row) => row.status === 'accepted')
-  const incoming = rows.filter((row) => row.status === 'pending' && row.addressee_id === user.id)
-  const outgoing = rows.filter((row) => row.status === 'pending' && row.requester_id === user.id)
+  const incoming = rows.filter((row) => row.status === 'pending' && row.addressee_id === user?.id)
+  const outgoing = rows.filter((row) => row.status === 'pending' && row.requester_id === user?.id)
 
   async function addFriend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    if (!user) { setError('Freundeverwaltung ist gerade nicht verbunden. Du kannst Freunde trotzdem direkt per vierstelligem Code herausfordern.'); return }
     try { await sendFriendRequest(user!.id, username); setUsername(''); setMessage('Freundschaftsanfrage gesendet.'); await refresh() }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Anfrage konnte nicht gesendet werden.') }
   }
@@ -88,6 +87,7 @@ export function FriendsPage() {
     finally { setBusyId('') }
   }
   async function inviteFriend() {
+    if (!user) { setError('Erstelle eine Partie ohne Konto über Online / Freunde und teile den vierstelligen Code.'); return }
     if (!supabase) return
     const { data, error: inviteError } = await supabase.rpc('create_game_invite', { p_game_type: 'blitz', p_time_control: '3 + 2', p_base_seconds: 180, p_increment_seconds: 2 })
     if (inviteError) { setError(inviteError.message); return }
@@ -131,8 +131,8 @@ export function ProfilePage({ username, navigate }: { username?: string; navigat
     return () => { active = false }
   }, [isOwn, user, username, ownProfile])
 
-  if (!user && !username) return <div className="platform-page"><PageHeading eyebrow="COMMUNITY" title="Profil noch nicht verfügbar" summary="Ein Gastprofil wird bereitgestellt, sobald die anonyme Backend-Verbindung aktiv ist." /><AccountGate /></div>
   if (!supabaseConfigured) return <div className="platform-page"><PageHeading eyebrow="SPIELERPROFIL" title="Profil" summary="Verbinde Supabase, um echte Spielerprofile und Wertungen zu laden." /><BackendNotice /></div>
+  if (isOwn && !user) return <div className="platform-page"><PageHeading eyebrow="GASTPROFIL" title="Profil" summary="Du kannst die App ohne Konto nutzen." /><EmptyState icon={<CircleUserRound size={22} />} title="Gastprofil wird verbunden" copy="Lokales Schach funktioniert sofort. Online-Profile und synchronisierte Statistiken werden verfügbar, sobald die anonyme Supabase-Gastverbindung aktiv ist." /></div>
   const rapid = ratings.find((rating) => rating.game_type === 'rapid')
   const onlineGames = games.filter((game) => game.game_mode === 'online' || game.game_mode === 'computer')
   const wins = onlineGames.filter((game) => game.winner_id === profile?.id).length
@@ -164,7 +164,6 @@ export function HistoryPage({ onAnalyze }: { onAnalyze: (game: SavedGame) => voi
     const target = Array.from(document.querySelectorAll<HTMLElement>('.history-card')).find((card) => card.dataset.gameId === requestedGameId)
     target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [games, loading, requestedGameId])
-  if (!user) return <div className="platform-page"><PageHeading eyebrow="PARTIEVERLAUF" title="Spielhistorie" summary="Partien werden im Gastmodus gespeichert, sobald das Backend verbunden ist." /><AccountGate /></div>
   const filtered = games.filter((game) => (modeFilter === 'all' || game.game_mode === modeFilter) && (gameTypeFilter === 'all' || game.game_type === gameTypeFilter))
   function downloadPgn(game: SavedGame) {
     const blob = new Blob([game.pgn], { type: 'application/x-chess-pgn' })
@@ -175,7 +174,7 @@ export function HistoryPage({ onAnalyze }: { onAnalyze: (game: SavedGame) => voi
     link.click()
     URL.revokeObjectURL(url)
   }
-  return <div className="platform-page"><PageHeading eyebrow="PARTIEVERLAUF" title="Spielhistorie" summary="Abgeschlossene Partien aus deinem Gastprofil." /><div className="history-filters"><label>Modus<select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option value="all">Alle Modi</option><option value="local">Lokal</option><option value="computer">Computer</option><option value="online">Online</option></select></label><label>Zeitkontrolle<select value={gameTypeFilter} onChange={(event) => setGameTypeFilter(event.target.value)}><option value="all">Alle Zeitkontrollen</option><option value="bullet">Bullet</option><option value="blitz">Blitz</option><option value="rapid">Rapid</option><option value="custom">Eigene</option></select></label></div>{error && <div className="inline-error">{error}</div>}{loading ? <div className="page-loading">Lade deine Partien …</div> : filtered.length ? <section className="history-list">{filtered.map((game) => <article className={`history-card ${requestedGameId === game.id ? 'history-card-target' : ''}`} data-game-id={game.id} key={game.id}><span className={`result-mark ${game.game_mode === 'local' ? 'result-draw' : game.winner_id === user.id ? 'result-win' : game.result === '1/2-1/2' ? 'result-draw' : 'result-loss'}`}>{game.game_mode === 'local' ? '·' : game.result === '1/2-1/2' ? '½' : game.winner_id === user.id ? 'W' : 'L'}</span><div className="history-game-details"><div><strong>{game.opponent_label ?? (game.game_mode === 'online' ? 'Online-Gegner' : 'Lokale Partie')}</strong><span>{game.game_type.toUpperCase()} · {game.time_control} · {new Date(game.completed_at ?? game.created_at).toLocaleString('de-DE')}</span></div><div className="history-game-meta"><span>{game.result}</span><small>{game.san_moves.length} Halbzüge{game.white_accuracy !== null || game.black_accuracy !== null ? ` · ${game.white_player_id === user.id ? game.white_accuracy : game.black_accuracy}% Genauigkeit` : ''}</small></div></div><div className="history-actions"><button onClick={() => onAnalyze(game)} disabled={!game.pgn}><Search size={14} /> Analysieren</button><button title="PGN herunterladen" onClick={() => downloadPgn(game)} disabled={!game.pgn}><ExternalLink size={14} /></button></div></article>)}</section> : <EmptyState icon={<CircleUserRound size={22} />} title="Noch keine Partien gespeichert" copy="Spiele eine Partie, damit sie hier erscheint." />}</div>
+  return <div className="platform-page"><PageHeading eyebrow="PARTIEVERLAUF" title="Spielhistorie" summary={user ? 'Abgeschlossene Partien aus deinem Gastprofil.' : 'Deine lokalen Partien funktionieren auch ohne Anmeldung.'} /><div className="history-filters"><label>Modus<select value={modeFilter} onChange={(event) => setModeFilter(event.target.value)}><option value="all">Alle Modi</option><option value="local">Lokal</option><option value="computer">Computer</option><option value="online">Online</option></select></label><label>Zeitkontrolle<select value={gameTypeFilter} onChange={(event) => setGameTypeFilter(event.target.value)}><option value="all">Alle Zeitkontrollen</option><option value="bullet">Bullet</option><option value="blitz">Blitz</option><option value="rapid">Rapid</option><option value="custom">Eigene</option></select></label></div>{error && <div className="inline-error">{error}</div>}{loading ? <div className="page-loading">Lade deine Partien …</div> : filtered.length ? <section className="history-list">{filtered.map((game) => <article className={`history-card ${requestedGameId === game.id ? 'history-card-target' : ''}`} data-game-id={game.id} key={game.id}><span className={`result-mark ${game.game_mode === 'local' ? 'result-draw' : game.winner_id === user?.id ? 'result-win' : game.result === '1/2-1/2' ? 'result-draw' : 'result-loss'}`}>{game.game_mode === 'local' ? '·' : game.result === '1/2-1/2' ? '½' : game.winner_id === user?.id ? 'W' : 'L'}</span><div className="history-game-details"><div><strong>{game.opponent_label ?? (game.game_mode === 'online' ? 'Online-Gegner' : 'Lokale Partie')}</strong><span>{game.game_type.toUpperCase()} · {game.time_control} · {new Date(game.completed_at ?? game.created_at).toLocaleString('de-DE')}</span></div><div className="history-game-meta"><span>{game.result}</span><small>{game.san_moves.length} Halbzüge{game.white_accuracy !== null || game.black_accuracy !== null ? ` · ${game.white_player_id === user?.id ? game.white_accuracy : game.black_accuracy}% Genauigkeit` : ''}</small></div></div><div className="history-actions"><button onClick={() => onAnalyze(game)} disabled={!game.pgn}><Search size={14} /> Analysieren</button><button title="PGN herunterladen" onClick={() => downloadPgn(game)} disabled={!game.pgn}><ExternalLink size={14} /></button></div></article>)}</section> : <EmptyState icon={<CircleUserRound size={22} />} title="Noch keine gespeicherten Partien" copy={user ? 'Abgeschlossene Partien aus deinem Gastprofil erscheinen hier.' : 'Du kannst sofort ohne Konto spielen. Online-Speicherung ist verfügbar, sobald das Supabase-Gastprofil verbunden ist.'} />}</div>
 }
 
 export function PageHeading({ eyebrow, title, summary }: { eyebrow: string; title: string; summary: string }) { return <div className="page-heading-row"><div><span className="eyebrow"><span className="eyebrow-line" /> {eyebrow}</span><h1>{title}</h1><p>{summary}</p></div></div> }
