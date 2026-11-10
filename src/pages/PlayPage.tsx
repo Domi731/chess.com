@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import ChessBoard, { playBoardSound, type BoardMove } from '../components/ChessBoard'
 import { useAuth } from '../contexts/AuthContext'
-import { requireSupabase, supabase } from '../lib/supabase'
+import { requireSupabase, supabase, supabaseConfigured } from '../lib/supabase'
 import { analyzePosition, parseUciMove, type EngineLine } from '../lib/stockfish'
 import { saveCompletedGame } from '../lib/data'
 import { TIME_CONTROLS, type TimeControl } from '../lib/types'
@@ -132,7 +132,7 @@ type Props = {
 }
 
 export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
-  const { user, profile } = useAuth()
+  const { user, profile, guestError } = useAuth()
   const [mode, setMode] = useState<PlayMode>(() => initialMode === 'local' || initialMode === 'online' || initialMode === 'computer'
     ? initialMode
     : new URLSearchParams(window.location.search).has('invite') ? 'online' : 'computer')
@@ -183,6 +183,12 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   function updateClock(next: { w: number; b: number }) {
     clockRef.current = next
     setClocks(next)
+  }
+
+  function guestAuthFeedback() {
+    if (guestError) return `Gastverbindung fehlgeschlagen: ${guestError}`
+    if (!supabaseConfigured) return 'Supabase fehlt: Setze VITE_SUPABASE_URL und VITE_SUPABASE_PUBLISHABLE_KEY und starte die App neu.'
+    return 'Der Gastzugang ist noch nicht verfügbar. Aktiviere in Supabase unter Authentication → Sign In / Providers die anonymen Anmeldungen und lade die App neu.'
   }
 
   function resetGame(nextMode = mode, nextControl = control) {
@@ -495,7 +501,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   }
 
   async function createInvite() {
-    if (!user) { setFeedback('Guest auth error. Please check Supabase configuration.'); return }
+    if (!user) { setFeedback(guestAuthFeedback()); return }
     setBusy(true)
     try {
       const { data, error } = await requireSupabase().rpc('create_game_invite', {
@@ -520,7 +526,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
       return
     }
     if (!user) {
-      setFeedback('Die Gastverbindung ist noch nicht bereit. Prüfe die Supabase-Gasteinstellungen.')
+      setFeedback(guestAuthFeedback())
       return
     }
 
@@ -542,7 +548,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   }
 
   async function findMatch() {
-    if (!user) { setFeedback('Die Gastverbindung ist noch nicht bereit. Prüfe die Supabase-Gasteinstellungen.'); return }
+    if (!user) { setFeedback(guestAuthFeedback()); return }
     setBusy(true)
     try {
       const { data, error } = await requireSupabase().rpc('join_matchmaking', {
