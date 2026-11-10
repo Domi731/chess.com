@@ -24,7 +24,7 @@ Ohne Supabase kannst du Dashboard, lokale Partien, Stockfish, Rätsel, Lektionen
    VITE_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
    ```
 
-3. Führe `supabase/migrations/202611100001_platform.sql` im SQL Editor deines Projekts aus. Die Migration erstellt Profile, Wertungen, Partien, Freundschaften, Gegnersuche, Rätselstatistiken, Lektionen, RLS-Regeln und den Avatar-Speicher.
+3. Führe im SQL Editor nacheinander `supabase/migrations/202611100001_platform.sql`, `supabase/migrations/202611100002_four_digit_invites.sql` und `supabase/migrations/202611100003_numeric_invites_4_to_8.sql` aus. Die Migrationen erstellen Tabellen, Profile, Spielregeln, Freundschaften und die numerischen Einladungscodes. Neue Codes haben sechs Ziffern; beim Beitreten werden vier bis acht Ziffern akzeptiert.
 4. Deploye die Edge Function `make-move` mit der Supabase CLI:
 
    ```bash

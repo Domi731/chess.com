@@ -70,7 +70,7 @@ export function FriendsPage() {
   async function addFriend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
-    if (!user) { setError('Freundeverwaltung ist gerade nicht verbunden. Du kannst Freunde trotzdem direkt per vierstelligem Code herausfordern.'); return }
+    if (!user) { setError('Freundeverwaltung ist gerade nicht verbunden. Du kannst Freunde trotzdem direkt mit einem Zahlencode herausfordern.'); return }
     try { await sendFriendRequest(user!.id, username); setUsername(''); setMessage('Freundschaftsanfrage gesendet.'); await refresh() }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Anfrage konnte nicht gesendet werden.') }
   }
@@ -87,7 +87,7 @@ export function FriendsPage() {
     finally { setBusyId('') }
   }
   async function inviteFriend() {
-    if (!user) { setError('Erstelle eine Partie ohne Konto über Online / Freunde und teile den vierstelligen Code.'); return }
+    if (!user) { setError('Erstelle eine Partie ohne Konto über Online / Freunde und teile den Zahlencode.'); return }
     if (!supabase) return
     const { data, error: inviteError } = await supabase.rpc('create_game_invite', { p_game_type: 'blitz', p_time_control: '3 + 2', p_base_seconds: 180, p_increment_seconds: 2 })
     if (inviteError) { setError(inviteError.message); return }

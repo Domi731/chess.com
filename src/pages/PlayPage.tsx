@@ -186,7 +186,12 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   }
 
   function guestAuthFeedback() {
-    if (guestError) return `Gastverbindung fehlgeschlagen: ${guestError}`
+    if (guestError) {
+      if (guestError.toLowerCase().includes('anonymous sign-ins are disabled') || guestError.toLowerCase().includes('anonymous')) {
+        return 'Anonyme Anmeldungen sind im Supabase-Projekt deaktiviert. Aktiviere sie unter Authentication → Sign In / Providers → Anonymous Sign-Ins und lade die App neu.'
+      }
+      return `Gastverbindung fehlgeschlagen: ${guestError}`
+    }
     if (!supabaseConfigured) return 'Supabase fehlt: Setze VITE_SUPABASE_URL und VITE_SUPABASE_PUBLISHABLE_KEY und starte die App neu.'
     return 'Der Gastzugang ist noch nicht verfügbar. Aktiviere in Supabase unter Authentication → Sign In / Providers die anonymen Anmeldungen und lade die App neu.'
   }
@@ -521,8 +526,8 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
 
   async function joinFriendGame() {
     const code = joinCode.trim()
-    if (!/^\d{4}$/.test(code)) {
-      setFeedback('Gib den vierstelligen Freundescode ein.')
+    if (!/^\d{4,8}$/.test(code)) {
+      setFeedback('Gib den 4- bis 8-stelligen Zahlencode ein.')
       return
     }
     if (!user) {
@@ -868,21 +873,21 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
                 <div className="online-or-divider"><span>ODER</span></div>
 
                 <form className="friend-code-entry" onSubmit={(event) => { event.preventDefault(); void joinFriendGame() }}>
-                  <label htmlFor="friend-game-code">Freundescode eingeben</label>
+                  <label htmlFor="friend-game-code">Freundescode eingeben (4–8 Ziffern)</label>
                   <div className="friend-code-controls">
                     <input
                       id="friend-game-code"
                       type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      pattern="[0-9]{4}"
-                      maxLength={4}
-                      placeholder="1234"
+                      pattern="[0-9]{4,8}"
+                      maxLength={8}
+                      placeholder="123456"
                       value={joinCode}
-                      onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, '').slice(0, 4))}
-                      aria-label="Vierstelliger Freundescode"
+                      onChange={(event) => setJoinCode(event.target.value.replace(/\D/g, '').slice(0, 8))}
+                      aria-label="Freundescode mit vier bis acht Ziffern"
                     />
-                    <button className="btn-chesscom-secondary" type="submit" disabled={busy || joinCode.length !== 4}>
+                    <button className="btn-chesscom-secondary" type="submit" disabled={busy || joinCode.length < 4 || joinCode.length > 8}>
                       Beitreten
                     </button>
                   </div>
@@ -890,7 +895,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
 
                 <button className="btn-chesscom-secondary" onClick={() => void createInvite()} disabled={busy}>
                   <Users size={16} />
-                  Vierstelligen Code erstellen
+                  Code erstellen
                 </button>
 
                 {inviteCode && (

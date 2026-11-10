@@ -20,7 +20,8 @@ Für Vercel brauche ich außerdem die Projekt-Domain, damit ich dir sagen kann, 
 ## Einrichtung im Supabase-Projekt
 
 1. Aktiviere anonyme Anmeldungen unter **Authentication → Sign In / Providers → Anonymous Sign-Ins**. Ohne diesen Schalter kann die App kein Gastprofil für Online-Partien anlegen.
-2. Führe `supabase/migrations/202611100001_platform.sql` und danach `supabase/migrations/202611100002_four_digit_invites.sql` im SQL Editor aus oder verknüpfe das Projekt mit der Supabase CLI und führe `supabase db push` aus. Das richtet Tabellen, Profile, Zugprüfung, vierstellige Freundescodes, Freundschaften, Richtlinien und Realtime ein.
+2. Führe `supabase/migrations/202611100001_platform.sql`, danach `supabase/migrations/202611100002_four_digit_invites.sql` und zuletzt `supabase/migrations/202611100003_numeric_invites_4_to_8.sql` im SQL Editor aus oder verknüpfe das Projekt mit der Supabase CLI und führe `supabase db push` aus. Neue Einladungen bekommen einen sechsstelligen Zahlencode; beim Beitreten werden 4–8 Ziffern akzeptiert.
+   Wenn `202611100001_platform.sql` und `202611100002_four_digit_invites.sql` bereits ausgeführt wurden, führe nur die neue Migration `202611100003_numeric_invites_4_to_8.sql` aus.
 3. Verknüpfe die CLI einmal mit deinem Supabase-Projekt und deploye die Funktion für serverseitig geprüfte Züge:
 
    ```bash
@@ -33,7 +34,7 @@ Für Vercel brauche ich außerdem die Projekt-Domain, damit ich dir sagen kann, 
 
 4. Prüfe, dass `make-move` JWT-Verifizierung aktiviert hat. Die Einstellung steht bereits in `supabase/config.toml`.
 5. Trage `VITE_SUPABASE_URL` und `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` ein und starte Vite neu. Lege dieselben Werte zusätzlich als Vercel-Environment-Variablen an.
-6. Prüfe in zwei Browsern oder auf zwei Geräten: Eine Person erstellt in **Play → Online / Friends** einen vierstelligen Code. Die andere wählt dort ebenfalls **Online / Friends**, gibt den Code ein und tritt als Gast bei. Einladungslinks funktionieren zusätzlich weiterhin.
+6. Prüfe in zwei Browsern oder auf zwei Geräten: Eine Person erstellt in **Play → Online / Friends** einen sechsstelligen Code. Die andere wählt dort ebenfalls **Online / Friends**, gibt den Code ein und tritt als Gast bei. Einladungslinks funktionieren zusätzlich weiterhin.
 
 ## Gastprofil und Daten
 
