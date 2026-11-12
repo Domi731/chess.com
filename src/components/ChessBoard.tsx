@@ -26,6 +26,8 @@ type Props = {
   interactive?: boolean
   orientation?: Color
   lastMove?: { from: Square; to: Square } | null
+  hintMove?: { from: Square; to: Square } | null
+  showHintArrow?: boolean
   theme?: 'green' | 'blue' | 'wood' | 'mono'
   pieceSet?: 'classic' | 'contrast' | 'minimal'
   coordinates?: boolean
@@ -55,7 +57,19 @@ function readBoardPreferences() {
   catch { return {} }
 }
 
-export default function ChessBoard({ fen, onMove, interactive = true, orientation = 'w', lastMove, theme, pieceSet, coordinates, className = '' }: Props) {
+export default function ChessBoard({
+  fen,
+  onMove,
+  interactive = true,
+  orientation = 'w',
+  lastMove,
+  hintMove,
+  showHintArrow = true,
+  theme,
+  pieceSet,
+  coordinates,
+  className = '',
+}: Props) {
   const game = useMemo(() => new Chess(fen), [fen])
   const [selected, setSelected] = useState<Square | null>(null)
   const [promotion, setPromotion] = useState<{ from: Square; to: Square } | null>(null)
@@ -190,11 +204,13 @@ export default function ChessBoard({ fen, onMove, interactive = true, orientatio
           const isSelected = selected === square
           const canMove = legal.has(square)
           const inCheck = checkSquare === square
+          const isHintFrom = hintMove?.from === square
+          const isHintTo = hintMove?.to === square
           return (
             <div
               role="gridcell"
               key={square}
-              className={`square ${isLight ? 'square-light' : 'square-dark'} ${isLastMove ? 'square-last-move' : ''} ${isSelected ? 'square-selected' : ''} ${inCheck ? 'square-check' : ''}`}
+              className={`square ${isLight ? 'square-light' : 'square-dark'} ${isLastMove ? 'square-last-move' : ''} ${isSelected ? 'square-selected' : ''} ${inCheck ? 'square-check' : ''} ${isHintFrom ? 'square-hint-from' : ''} ${isHintTo ? 'square-hint-to' : ''}`}
               aria-label={`${square}${piece ? `, ${piece.color === 'w' ? 'white' : 'black'} ${names[piece.type]}` : ''}${canMove ? ', legal move' : ''}`}
               onClick={() => chooseSquare(square)}
               onDragOver={(event) => event.preventDefault()}
@@ -255,6 +271,49 @@ export default function ChessBoard({ fen, onMove, interactive = true, orientatio
             />
           </div>
         )}
+
+        {hintMove && showHintArrow && (() => {
+          const coordinatesFor = (square: Square) => {
+            const file = square.charCodeAt(0) - 97
+            const rank = Number(square[1])
+            return orientation === 'w'
+              ? { row: 8 - rank, col: file }
+              : { row: rank - 1, col: 7 - file }
+          }
+          const from = coordinatesFor(hintMove.from)
+          const to = coordinatesFor(hintMove.to)
+          const x1 = (from.col + 0.5) * 12.5
+          const y1 = (from.row + 0.5) * 12.5
+          const x2 = (to.col + 0.5) * 12.5
+          const y2 = (to.row + 0.5) * 12.5
+          const dx = x2 - x1
+          const dy = y2 - y1
+          const dist = Math.hypot(dx, dy)
+          const shorten = Math.min(2.5, dist * 0.22)
+          const endX = x2 - (dx / (dist || 1)) * shorten
+          const endY = y2 - (dy / (dist || 1)) * shorten
+
+          return (
+            <svg className="board-arrow-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <marker id="hint-arrow-head" markerWidth="4" markerHeight="4" refX="2.6" refY="2" orient="auto">
+                  <polygon points="0 0.5, 3.8 2, 0 3.5" fill="#16a34a" />
+                </marker>
+              </defs>
+              <line
+                x1={x1}
+                y1={y1}
+                x2={endX}
+                y2={endY}
+                stroke="#22c55e"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                markerEnd="url(#hint-arrow-head)"
+                opacity="0.88"
+              />
+            </svg>
+          )
+        })()}
       </div>
 
       {promotion && (

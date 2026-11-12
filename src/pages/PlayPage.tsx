@@ -8,7 +8,8 @@ import {
 import ChessBoard, { playBoardSound, type BoardMove } from '../components/ChessBoard'
 import { useAuth } from '../contexts/AuthContext'
 import { requireSupabase, supabase, supabaseConfigured } from '../lib/supabase'
-import { analyzePosition, parseUciMove, type EngineLine } from '../lib/stockfish'
+import { analyzePosition, parseUciMove } from '../lib/stockfish'
+import { getBotLevelForRating, chooseBotMove } from '../lib/botLevels'
 import { saveCompletedGame } from '../lib/data'
 import { TIME_CONTROLS, type TimeControl } from '../lib/types'
 
@@ -40,14 +41,6 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
-const levels = [
-  { label: 'Beginner', rating: 400, depth: 4, skill: 0 },
-  { label: 'Casual', rating: 900, depth: 7, skill: 4 },
-  { label: 'Intermediate', rating: 1400, depth: 10, skill: 8 },
-  { label: 'Advanced', rating: 1900, depth: 13, skill: 14 },
-  { label: 'Master', rating: 2400, depth: 16, skill: 20 },
-]
-
 const styles = [
   { id: 'balanced', label: 'Balanced' },
   { id: 'tactical', label: 'Aggressive' },
@@ -60,27 +53,6 @@ function formatClock(seconds: number) {
   const mins = Math.floor(safe / 60)
   const secs = safe % 60
   return `${mins}:${String(secs).padStart(2, '0')}`
-}
-
-function chooseBotMove(fen: string, lines: EngineLine[], style: BotStyle) {
-  const options = lines.flatMap((line) => {
-    const move = line.pv[0] ? parseUciMove(line.pv[0]) : null
-    if (!move) return []
-    const copy = new Chess(fen)
-    try {
-      const applied = copy.move(move)
-      return [{ move, score: line.scoreCp ?? (line.mate ? (line.mate > 0 ? 100_000 : -100_000) : 0), capture: applied.isCapture(), check: copy.isCheck(), mate: copy.isCheckmate(), center: ['d4', 'e4', 'd5', 'e5'].includes(move.to) }]
-    } catch { return [] }
-  })
-  if (!options.length) return null
-  const bestScore = Math.max(...options.map((option) => option.score))
-  const close = options.filter((option) => option.score >= bestScore - 75)
-  const selected = style === 'tactical'
-    ? [...close].sort((a, b) => Number(b.mate) - Number(a.mate) || Number(b.check) - Number(a.check) || Number(b.capture) - Number(a.capture))[0]
-    : style === 'positional'
-      ? [...close].sort((a, b) => Number(b.center) - Number(a.center) || Number(a.capture) - Number(b.capture))[0]
-      : options.sort((a, b) => b.score - a.score)[0]
-  return selected.move
 }
 
 // Calculate captured pieces & material difference
@@ -145,7 +117,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   const [started, setStarted] = useState(false)
   const [flagged, setFlagged] = useState<Color | null>(null)
   const [humanColor, setHumanColor] = useState<Color>('w')
-  const [botLevel, setBotLevel] = useState(levels[2]) // Intermediate (1400)
+  const [botLevel, setBotLevel] = useState(() => getBotLevelForRating(1400))
   const [botStyle, setBotStyle] = useState<BotStyle>('balanced')
   const [thinking, setThinking] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -466,7 +438,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
     try {
       const analysis = await analyzePosition(position, botLevel.depth, { skill: botLevel.skill, multipv: 3 })
       if (engineRequestId.current !== requestId || gameRef.current.fen() !== position) return
-      const selectedMove = chooseBotMove(position, analysis.lines, botStyle) ?? parseUciMove(analysis.bestMove ?? '')
+      const selectedMove = chooseBotMove(position, analysis.lines, botLevel, botStyle) ?? parseUciMove(analysis.bestMove ?? '')
       if (!selectedMove) throw new Error('Stockfish produced no move.')
       await wait(OPPONENT_MOVE_DELAY_MS)
       if (engineRequestId.current !== requestId || gameRef.current.fen() !== position) return
@@ -595,7 +567,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   const bottomColor: Color = orientation
 
   const topName = mode === 'computer'
-    ? `Stockfish Level ${levels.indexOf(botLevel) + 1}`
+    ? `${botLevel.name}`
     : mode === 'online'
       ? 'Opponent'
       : topColor === 'w' ? 'White' : 'Black'
@@ -802,20 +774,27 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
               <div className="bot-config-card">
                 <div className="bot-level-slider">
                   <div className="bot-level-header">
-                    <span>Skill Level</span>
-                    <strong>{botLevel.label} ({botLevel.rating})</strong>
+                    <span>Bot-Stärke</span>
+                    <strong>{botLevel.label} · {botLevel.rating} Elo</strong>
                   </div>
-                  <div className="level-buttons-row">
-                    {levels.map((lvl) => (
-                      <button
-                        key={lvl.label}
-                        className={`level-btn ${botLevel.label === lvl.label ? 'level-btn-active' : ''}`}
-                        onClick={() => setBotLevel(lvl)}
-                      >
-                        {lvl.label[0]}
-                      </button>
-                    ))}
-                  </div>
+                  <input
+                    className="bot-elo-range"
+                    aria-label="Bot-Stärke in Elo"
+                    type="range"
+                    min="100"
+                    max="2400"
+                    step="100"
+                    value={botLevel.rating}
+                    onChange={(event) => setBotLevel(getBotLevelForRating(Number(event.target.value)))}
+                  />
+                  <div className="bot-elo-range-labels"><span>100 Elo</span><span>2400 Elo</span></div>
+                  <p className="bot-level-description">{botLevel.description}</p>
+                  {botLevel.isLowDifficulty && (
+                    <div className="bot-tips-notice" role="note">
+                      <strong>💡 Tipp für deinen Zug</strong>
+                      <span>Prüfe zuerst, ob dein König bedroht ist. Dann suche nach Figuren, die du schlagen kannst, und achte darauf, keine eigene Figur ungedeckt stehen zu lassen.</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bot-style-chooser">

@@ -79,15 +79,23 @@ class StockfishClient {
 }
 
 let singleton: StockfishClient | null = null
+let hintSingleton: StockfishClient | null = null
 
 export function analyzePosition(fen: string, depth = 13, options: { skill?: number; multipv?: number } = {}) {
   singleton ??= new StockfishClient()
   return singleton.analyze(fen, depth, options)
 }
 
+export function analyzeHint(fen: string, depth = 8) {
+  hintSingleton ??= new StockfishClient()
+  return hintSingleton.analyze(fen, depth, { skill: 20, multipv: 1 })
+}
+
 export function stopStockfish() {
   singleton?.terminate()
   singleton = null
+  hintSingleton?.terminate()
+  hintSingleton = null
 }
 
 export function parseUciMove(uci: string): BoardMove | null {
