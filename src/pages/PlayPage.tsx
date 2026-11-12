@@ -128,6 +128,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<'play' | 'moves' | 'chat'>('play')
   const [showResignConfirm, setShowResignConfirm] = useState(false)
+  const [gameResultDismissed, setGameResultDismissed] = useState(false)
   const [resignedBy, setResignedBy] = useState<Color | null>(null)
 
   const gameRef = useRef(new Chess())
@@ -145,7 +146,8 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   const inviteCodeFromUrl = new URLSearchParams(window.location.search).get('invite')?.trim() ?? ''
   const boardIsOnline = mode === 'online' && onlineGame?.status === 'active'
   const isCheckmate = game.isCheckmate()
-  const isDraw = game.isDraw()
+  const isStalemate = game.isStalemate()
+  const isDraw = game.isDraw() || onlineGame?.result === '1/2-1/2'
   const isOver = Boolean(flagged) || Boolean(resignedBy) || isCheckmate || isDraw || onlineGame?.status === 'completed'
   const onlineTurn = boardIsOnline && user?.id === (game.turn() === 'w' ? onlineGame?.white_player_id : onlineGame?.black_player_id)
   const interactive = !isOver && !thinking && !busy && (mode !== 'online' || onlineTurn) && (mode !== 'computer' || game.turn() === humanColor)
@@ -180,6 +182,7 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
     setLastMove(null)
     setFlagged(null)
     setResignedBy(null)
+    setGameResultDismissed(false)
     setShowResignConfirm(false)
     setStarted(false)
     setThinking(false)
@@ -586,6 +589,37 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
   const topCaptured = topColor === 'w' ? materialInfo.whiteCaptured : materialInfo.blackCaptured
   const bottomCaptured = bottomColor === 'w' ? materialInfo.whiteCaptured : materialInfo.blackCaptured
 
+  const losingColor: Color | null = flagged ?? resignedBy ?? (isCheckmate ? game.turn() : null)
+  const localWinnerColor: Color | null = losingColor ? (losingColor === 'w' ? 'b' : 'w') : null
+  const onlineWinnerColor: Color | null = onlineGame?.winner_id
+    ? onlineGame.winner_id === onlineGame.white_player_id ? 'w' : 'b'
+    : null
+  const winnerColor = onlineWinnerColor ?? localWinnerColor
+  const winnerName = winnerColor === 'w' ? 'Weiß' : winnerColor === 'b' ? 'Schwarz' : null
+  const playerLost = Boolean(winnerColor && (
+    (mode === 'computer' && winnerColor !== humanColor)
+    || (mode === 'online' && Boolean(user && onlineGame?.winner_id && onlineGame.winner_id !== user.id))
+  ))
+  const resultTone = isDraw ? 'draw' : playerLost ? 'defeat' : 'victory'
+  const resultTitle = isStalemate
+    ? 'Patt'
+    : isDraw
+      ? 'Remis'
+      : isCheckmate
+        ? playerLost ? 'Schachmatt – verloren' : 'Schachmatt'
+        : playerLost ? 'Verloren' : winnerColor ? 'Gewonnen' : 'Partie beendet'
+  const resultDescription = isStalemate
+    ? 'Keine legalen Züge mehr, aber der König steht nicht im Schach. Die Partie endet remis.'
+    : isDraw
+      ? 'Die Partie endet unentschieden.'
+      : isCheckmate
+        ? playerLost ? `${winnerName ?? 'Der Gegner'} gewinnt durch Schachmatt.` : mode === 'local' ? `${winnerName ?? 'Der Gegner'} setzt matt.` : 'Du gewinnst durch Schachmatt.'
+        : flagged
+          ? playerLost ? 'Deine Zeit ist abgelaufen.' : `Die Zeit von ${losingColor === 'w' ? 'Weiß' : 'Schwarz'} ist abgelaufen.`
+          : resignedBy
+            ? playerLost ? 'Du hast aufgegeben.' : `${losingColor === 'w' ? 'Weiß' : 'Schwarz'} hat aufgegeben.`
+            : winnerName ? `${winnerName} gewinnt die Partie.` : 'Die Partie ist beendet.'
+
   // Game over state banner description
   let gameOverTitle = ''
   let gameOverSubtitle = ''
@@ -609,6 +643,26 @@ export default function PlayPage({ initialMode, onSaved, onAnalyze }: Props) {
 
   return (
     <div className="chesscom-play-arena">
+      {isOver && !gameResultDismissed && (
+        <div className="game-result-overlay">
+          <section className={`game-result-dialog game-result-${resultTone}`} role="dialog" aria-modal="true" aria-labelledby="game-result-title" aria-describedby="game-result-description">
+            <div className="game-result-icon">
+              {resultTone === 'draw' ? <Swords size={30} /> : resultTone === 'defeat' ? <Flag size={30} /> : <Award size={30} />}
+            </div>
+            <span className="game-result-kicker">PARTIE BEENDET</span>
+            <h2 id="game-result-title">{resultTitle}</h2>
+            <p id="game-result-description">{resultDescription}</p>
+            <div className="game-result-actions">
+              <button className="btn-chesscom-green" onClick={() => restartCurrentGame()}>
+                <RotateCcw size={16} /> Nochmal spielen
+              </button>
+              <button className="btn-chesscom-secondary" onClick={() => { setGameResultDismissed(true); setActiveTab('moves') }}>
+                Züge ansehen
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {/* LEFT / CENTER: THE BOARD CONTAINER */}
       <div className="board-column">
         {/* Top Player Bar */}
